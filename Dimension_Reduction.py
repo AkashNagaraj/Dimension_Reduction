@@ -1,72 +1,57 @@
-import torch
-import time
-from torch.optim import Adam
-import torch.nn as nn
-import sys, os
-import cv2
+##https://github.com/coderoda/Cifar-10-Classification-using-scikit-learn/blob/master/smai-mini-project2.py
+
+import pickle, time, sys, os
 import numpy as np
 
-from sklearn.model_selection import train_test_split
+from sklearn import svm
 from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
 from sklearn import manifold
 from sklearn.metrics import euclidean_distances
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 
-def img_preprocessing(img):
-  img = np.resize(img,(250,250))
-  img = img/np.linalg.norm(img)
-  return img
+def load_cifar():
+    trn_data, trn_labels, tst_data, tst_labels = [], [], [], []
 
+    def unpickle(file):
+        with open(file, 'rb') as fo:
+            data = pickle.load(fo, encoding='latin1')
+        return data
 
-def read_data(path,training_classes):
-
-  img_classes = {"shine":0,"sunrise":1,"rainy":2,"foggy":3,"cloudy":4}
-  total_size, count = 0, 0
-
-  for c in training_classes:
-    total_size+= len(os.listdir(path+"/"+c))
-  training_data = np.empty((total_size,250,250),float)
-  training_labels = []
-
-  for c in training_classes:
-    all_images = os.listdir(path+"/"+c)
-    class_labels = [img_classes[c]]*len(all_images)
-    training_labels += class_labels
-    for idx,val in enumerate(all_images):
-      try:
-        img_path =  path+"/"+c+"/"+val
-        img_data = cv2.imread(img_path)
-        training_data[count] = img_preprocessing(img_data)
-        count+=1
-      except:
-        print(img_path)
+    for i in range(5):
+        batchName = './data/cifar_10/data_batch_{0}'.format(i + 1)
+        unpickled = unpickle(batchName)
+        trn_data.extend(unpickled['data'])
+        trn_labels.extend(unpickled['labels'])
     
-  #print(training_data)
+    unpickled = unpickle('./data/cifar_10/test_batch')
+    tst_data.extend(unpickled["data"])
+    tst_labels.extend(unpickled["data"])
+    tst_data = np.array(tst_data)
+    tst_labels = np.array(tst_labels)
 
-  return (training_data, training_labels, total_size)
+    trn_data = np.array(trn_data)
+    trn_labels = np.array(trn_labels)
+    return (trn_data - trn_data.mean(axis=0)), trn_labels, (tst_data - tst_data.mean(axis=0)), tst_labels
 
 
-def PCA_main(X,total_size):
-  X_new = X.reshape(total_size,250*250)
+def PCA_main(X_new,total_size):
   start = time.time()
-  pca = PCA(n_components = 5)
+  pca = PCA(n_components = 32)
   end = time.time()
   X_final = pca.fit_transform(X_new)
   print("Number of seconds to perform PCA decomposition : ",end-start)
   return X_final
 
 
-def MDS_main(X,total_size):
-  X_new = X.reshape(total_size,250*250)  
+def MDS_main(X_new,total_size):
   X_new = X_new - X_new.mean()
   start = time.time()
   similarities = euclidean_distances(X_new)
   nmds = manifold.MDS(
-    n_components=5,
+    n_components=6,
     metric=False,
     max_iter=1000,
     eps=1e-8,
@@ -85,8 +70,7 @@ def MDS_main(X,total_size):
 
 
 def tsne_main(X,total_size):
-  X_new = X.reshape(total_size,250*250)
-  X_new = X_new - X_new.mean()
+  X_new = X - X.mean()
   start = time.time()
   TSNE = manifold.TSNE(
     n_components=1, #1000
@@ -101,53 +85,93 @@ def tsne_main(X,total_size):
   return modified_X
 
 
-def KNN_classifier(X,y):
+def KNN_classifier(X_train,y_train,X_test,y_test):
     neighbor = [20,30,40]#[10,20,30,40,50,60,70,80,90,100]
     for val in neighbor:
         neigh = KNeighborsClassifier(n_neighbors = val)
-        X_train, X_test, y_train, y_test = train_test_split(X,y,random_state=16)
         neigh.fit(X_train,y_train)
         predicted = neigh.predict(X_test)
-        print("The accuracy is :",np.sum(predicted==y_test)/len(y_test))
+        
+        print(predicted.shape,y_test.shape)
+        print("The accuracy in KNN is :",np.sum(predicted==y_test)/len(y_test))
+
+
+def SVM_classifier(X_train,y_train,X_test,y_test):
+    clf = svm.SVC(decision_function_shape="ovo")
+    clf.fit(X_train,y_train)
+    predicted = clf.predict(X_test)
+    print("The accuracy in SVM classifier is :",np.sum(predicted==y_test)/len(y_test))
+
+
+def LDA_classifier(X_train,y_train,X_test,y_test):
+    clf = LinearDiscriminantAnalysis()
+    clf.fit(X_train,y_train)
+    predicted = clf.predict(X_test)
+    print("The accuracy in LDA classifier is :",np.sum(predicted==y_test)/len(y_test))
+
+
+def store_data(cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels):
+    
+    global X_train,y_train,X_test,y_test
+    
+    X_train, y_train = cifar_trn_data, cifar_trn_labels
+    X_train, y_train = shuffle(X_train,y_train)
+    with open("data/X_train.npy","wb") as f:
+        np.save(f,X_train)
+    with open("data/y_train.npy","wb") as f:
+        np.save(f,y_train)
+    print("The shape of cifar training is : {} and : {}".format(cifar_trn_data.shape,cifar_trn_labels.shape)) # (50000, 3072)
+    
+    X_test, y_test = cifar_tst_data, cifar_tst_labels
+    X_test, y_test = shuffle(X_test,y_test)
+    with open("data/X_test.npy","wb") as f:
+        np.save(f,X_test)
+    with open("data/y_test.npy","wb") as f:
+        np.save(f,y_test)
+    print("The shape of cifar testing is : {} and : {}".format(cifar_tst_data.shape,cifar_tst_labels.shape))
+
+
+def load_data():
+    global X_train,y_train,X_test,y_test
+    X_train = np.load("data/X_train.npy")
+    y_train = np.load("data/y_train.npy")
+    X_test = np.load("data/X_test.npy")
+    y_test = np.load("data/y_test.npy")
 
 
 def main():
-    training_classes = ["shine","sunrise","rainy","foggy","cloudy"]
-    training_data, training_classes, total_size = read_data("data/weather_dataset",training_classes)
-   
-    #print("KNN with no dimension reduction")
-    X, y = shuffle(training_data.reshape(total_size,250*250),training_classes)
-    KNN_classifier(X,y)
-
-    """
-    print("PCA")
-    X_pca = PCA_main(training_data,total_size)
-    with open("data/PCA_Data.npy","wb") as f:
-                np.save(f,X_pca)
-    X_pca = np.load("data/PCA_Data.npy")
-    X_pca, y = shuffle(X_pca,training_classes)
-    KNN_classifier(X_pca,y)
-    """
     
-    """
-    print("tSNE")
-    X_tsne = tsne_main(training_data,total_size)
-    with open("data/tSNE_Data.npy","wb") as f:
-                np.save(f,X_tsne)
-    X_tsne = np.load("data/tSNE_Data.npy")
-    X_tsne, y = shuffle(X_tsne,training_classes)
-    KNN_classifier(X_tsne,y)
-    """
+    total_size, sample_size = 50000,10000
+    
+    build_cifar = True
 
-    """
+    if build_cifar:
+        cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels = load_cifar()
+        store_data(cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels)
+    else:
+        load_data()
+    
+    KNN_classifier(X_train[:sample_size],y_train[:sample_size],X_test,y_test)
+    SVM_classifier(X_train[:sample_size],y_train[:sample_size],X_test,y_test) 
+    LDA_classifier(X_train[:sample_size],y_train[:sample_size],X_test,y_test)  
+
+    sys.exit()
+
+    print("Running PCA")
+    X_pca = PCA_main(X,total_size)
+    KNN_classifier(X_pca,y)
+    print("Completed PCA")
+    
+    print("Runnning tSNE")
+    X_tsne = tsne_main(X,total_size)
+    KNN_classifier(X_tsne,y)
+    print("Completed tSNE")
+    
     print("MDS")
-    X_mds = MDS_main(training_data,total_size)
-    with open("data/MDS_Data.npy","wb") as f:
-        np.save(f,X_mds)
-    X_mds = np.load("data/MDS_Data.npy")
-    X_mds, y = shuffle(X_mds,training_classes)
-    KNN_classifier(X_mds,y)
-    """
+    X_MDS = MDS_main(X,total_size)
+    KNN_classifier(X_MDS,y)
+    print("Completed MDS")
+    
 
 if __name__=="__main__":
     main()
