@@ -6,6 +6,7 @@ import numpy as np
 from sklearn import svm
 from sklearn.decomposition import PCA
 from sklearn import manifold
+from sklearn.model_selection import train_test_split
 from sklearn.metrics import euclidean_distances
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.utils import shuffle
@@ -28,25 +29,26 @@ def load_cifar():
     
     unpickled = unpickle('./data/cifar_10/test_batch')
     tst_data.extend(unpickled["data"])
-    tst_labels.extend(unpickled["data"])
+    tst_labels.extend(unpickled["labels"])
     tst_data = np.array(tst_data)
     tst_labels = np.array(tst_labels)
 
-    trn_data = np.array(trn_data)
-    trn_labels = np.array(trn_labels)
+    trn_data = np.array(trn_data,dtype=np.int)
+    trn_labels = np.array(trn_labels,dtype=np.int)
+
     return (trn_data - trn_data.mean(axis=0)), trn_labels, (tst_data - tst_data.mean(axis=0)), tst_labels
 
 
-def PCA_main(X_new,total_size):
+def PCA_main(X_new):
   start = time.time()
-  pca = PCA(n_components = 32)
+  pca = PCA(n_components = 192)
   end = time.time()
   X_final = pca.fit_transform(X_new)
   print("Number of seconds to perform PCA decomposition : ",end-start)
   return X_final
 
 
-def MDS_main(X_new,total_size):
+def MDS_main(X_new):
   X_new = X_new - X_new.mean()
   start = time.time()
   similarities = euclidean_distances(X_new)
@@ -69,15 +71,15 @@ def MDS_main(X_new,total_size):
   return X_modified
 
 
-def tsne_main(X,total_size):
+def tsne_main(X):  
   X_new = X - X.mean()
   start = time.time()
   TSNE = manifold.TSNE(
-    n_components=1, #1000
+    n_components=2, #1000
     metric="seuclidean",
     method="exact",
     random_state=5,
-    n_jobs=1
+    n_jobs=2
   )
   modified_X = TSNE.fit_transform(X_new)
   end = time.time()
@@ -85,25 +87,53 @@ def tsne_main(X,total_size):
   return modified_X
 
 
-def KNN_classifier(X_train,y_train,X_test,y_test):
-    neighbor = [20,30,40]#[10,20,30,40,50,60,70,80,90,100]
+def KNN_classifier(X,y,dim_reduction):
+    neighbor = [20,30,40]#,50,60,70,80,90,100]
+    
+    if dim_reduction:
+        X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.2)
+    else:
+        X_train = X
+        y_train = y
+        X_test = np.load("data/X_test.npy")
+        y_test = np.load("data/y_test.npy")
+
+    print("X_train : {}, y_train : {}, X_test : {}, y_test : {}".format(X_train.shape,y_train.shape,X_test.shape,y_test.shape))
+    accuracy = []
     for val in neighbor:
         neigh = KNeighborsClassifier(n_neighbors = val)
         neigh.fit(X_train,y_train)
         predicted = neigh.predict(X_test)
         
-        print(predicted.shape,y_test.shape)
-        print("The accuracy in KNN is :",np.sum(predicted==y_test)/len(y_test))
+        #print(predicted.shape,y_test.shape)
+        print("Accuracy in KNN : {}, K : {}".format(np.sum(predicted==y_test)/len(y_test),val))
+        accuracy.append(np.sum(predicted==y_test)/len(y_test))
 
 
-def SVM_classifier(X_train,y_train,X_test,y_test):
+def SVM_classifier(X,y,dim_reduction):
+    if dim_reduction:
+        X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.2)
+    else:
+        X_train = X
+        y_train = y
+        X_test = np.load("data/X_test.npy")
+        y_test = np.load("data/y_test.npy")
+
     clf = svm.SVC(decision_function_shape="ovo")
     clf.fit(X_train,y_train)
     predicted = clf.predict(X_test)
     print("The accuracy in SVM classifier is :",np.sum(predicted==y_test)/len(y_test))
 
 
-def LDA_classifier(X_train,y_train,X_test,y_test):
+def LDA_classifier(X,y,dim_reduction):
+    if dim_reduction:
+        X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.2)
+    else:
+        X_train = X
+        y_train = y
+        X_test = np.load("data/X_test.npy")
+        y_test = np.load("data/y_test.npy")
+
     clf = LinearDiscriminantAnalysis()
     clf.fit(X_train,y_train)
     predicted = clf.predict(X_test)
@@ -141,9 +171,9 @@ def load_data():
 
 def main():
     
-    total_size, sample_size = 50000,10000
-    
-    build_cifar = True
+    total_size, sample_size = 50000, 1000
+    build_cifar = False
+    dim_reduction = True
 
     if build_cifar:
         cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels = load_cifar()
@@ -151,26 +181,49 @@ def main():
     else:
         load_data()
     
-    KNN_classifier(X_train[:sample_size],y_train[:sample_size],X_test,y_test)
-    SVM_classifier(X_train[:sample_size],y_train[:sample_size],X_test,y_test) 
-    LDA_classifier(X_train[:sample_size],y_train[:sample_size],X_test,y_test)  
-
+    print("The size of the data being used is : ",sample_size)
+    
+    """ 
+    KNN_classifier(X_train[:sample_size],y_train[:sample_size],False)
+    SVM_classifier(X_train[:sample_size],y_train[:sample_size],False) 
+    LDA_classifier(X_train[:sample_size],y_train[:sample_size],False) 
     sys.exit()
+    """
 
-    print("Running PCA")
-    X_pca = PCA_main(X,total_size)
-    KNN_classifier(X_pca,y)
-    print("Completed PCA")
+    print("Running different dimension reduction algorithms")
     
-    print("Runnning tSNE")
-    X_tsne = tsne_main(X,total_size)
-    KNN_classifier(X_tsne,y)
-    print("Completed tSNE")
+    """
+    X_pca = PCA_main(X_test)
+    with open("data/pca/X_pca_test.npy","wb") as f:
+        np.save(f,X_pca)
+    """
+    X_tsne = tsne_main(X_train[:sample_size])
+    with open("data/tsne/X_tsne_"+str(sample_size)+".npy","wb") as f:
+        np.save(f,X_tsne)
+    """
+    X_mds = MDS_main(X_train[:sample_size])
+    with open("data/mds/X_mds_"+str(sample_size)+".npy","wb") as f:
+        np.save(f,X_mds)
+    """
+    #X_pca = np.load("data/pca/X_pca_"+str(sample_size)+".npy")
+    #X_tsne = np.load("data/tsne/X_tsne_"+str(sample_size)+".npy")
+    #X_mds = np.load("data/mds/X_mds_"+str(sample_size)+".npy")
+
+    print("Starting KNN")
+    #KNN_classifier(X_pca,y_train[:sample_size],dim_reduction=True)
+    KNN_classifier(X_tsne,y_train[:sample_size],dim_reduction=True)
+    #KNN_classifier(X_mds,y_train[:sample_size],dim_reduction=True)
     
-    print("MDS")
-    X_MDS = MDS_main(X,total_size)
-    KNN_classifier(X_MDS,y)
-    print("Completed MDS")
+
+    print("Starting SVM")
+    SVM_classifier(X_pca,y_train[:sample_size],dim_reduction=True)
+    #SVM_classifier(X_tsne,y_train[:sample_size],dim_reduction=True)
+    #SVM_classifier(X_mds,y_train[:sample_size],dim_reduction=True)
+    
+    print("Starting LDA")
+    LDA_classifier(X_pca,y_train[:sample_size],dim_reduction=True)
+    #LDA_classifier(X_tsne,y_train[:sample_size],dim_reduction=True)
+    #LDA_classifier(X_mds,y_train[:sample_size],dim_reduction=True) 
     
 
 if __name__=="__main__":
