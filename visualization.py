@@ -41,13 +41,15 @@ def accuracy():
 
 # https://stackoverflow.com/questions/12487060/matplotlib-color-according-to-class-labels
 def tsne_plot():
-    X = np.load("data/tsne/X_tsne_5000.npy")
+    X = np.load("data/tSNE/X_tsne_5000.npy")
     label = np.load("data/y_train.npy")[:5000]
-    colors= ["navy","darkblue","slateblue","rebeccapurple","indigo","darkmagenta","crimson","lightseagreen","yellow","darkorange"]
-    plt.style.use('dark_background')    
+    #colors= ["maroon","orange","olive","seagreen","teal","dodgerblue","midnightblue","indigo","darkmagenta","crimson"]
+    colors= ["deeppink","darkblue","slateblue","rebeccapurple","indigo","darkmagenta","crimson","lightseagreen","yellow","orangered"]
+
+    plt.style.use("fivethirtyeight")
     fig = plt.figure(figsize=(10,10))
     plt.scatter(X[:,0],X[:,1],c=label,cmap=matplotlib.colors.ListedColormap(colors))
-    plt.title("Resulting t-SNE projection")
+    plt.title("Resulting 2D t-SNE projection")
 
     cb = plt.colorbar()
     loc = np.arange(0,max(label),max(label)/float(len(colors)))

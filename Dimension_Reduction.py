@@ -71,7 +71,7 @@ def MDS_main(X_new):
   return X_modified
 
 
-def tsne_main(X):  
+def tSNE_main(X):  
   X_new = X - X.mean()
   start = time.time()
   TSNE = manifold.TSNE(
@@ -88,7 +88,7 @@ def tsne_main(X):
 
 
 def KNN_classifier(X,y,dim_reduction):
-    neighbor = [1,5,10,20,30,40,50,60,70,80,90,100]
+    neighbor = [10,20,30,40]#,50,60,70,80,90,100]
     
     if dim_reduction:
         X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.2)
@@ -213,7 +213,7 @@ def main(sample_size, classification_model, dimension_reduction):
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--size",type=int,default=500,help="The size of the data you want to use")
-    parser.add_argument("--classification",type=str,default='KNN,SVM',help="Enter the models you want to use")
+    parser.add_argument("--classification",type=str,default='KNN,SVM,LDA',help="Enter the models you want to use")
     parser.add_argument("--dim_reduction",type=str,default='PCA,tSNE,NMDS',help="Enter the dimension reduction technique you want to implement")
         
     args=parser.parse_args()
