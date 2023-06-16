@@ -33,22 +33,22 @@ def load_cifar():
     tst_data = np.array(tst_data)
     tst_labels = np.array(tst_labels)
 
-    trn_data = np.array(trn_data,dtype=np.int)
-    trn_labels = np.array(trn_labels,dtype=np.int)
+    trn_data = np.array(trn_data)
+    trn_labels = np.array(trn_labels)
 
     return (trn_data - trn_data.mean(axis=0)), trn_labels, (tst_data - tst_data.mean(axis=0)), tst_labels
 
 
 def PCA_main(X_new):
   start = time.time()
-  pca = PCA(n_components = 5)
+  pca = PCA(n_components = 192)
   end = time.time()
   X_final = pca.fit_transform(X_new)
   print("Number of seconds to perform PCA decomposition : ",end-start)
   return X_final
 
 
-def MDS_main(X_new):
+def NMDS_main(X_new):
   X_new = X_new - X_new.mean()
   start = time.time()
   similarities = euclidean_distances(X_new)
@@ -65,7 +65,7 @@ def MDS_main(X_new):
   )
   X_modified = nmds.fit_transform(similarities)
   end = time.time()
-  print("Time taken for MDS decomposition : ",end-start)
+  print("Time taken for NMDS decomposition : ",end-start)
   # Rescale the data
   X_modified *= np.sqrt((X_new**2).sum()) / np.sqrt((X_modified**2).sum())
   return X_modified
@@ -88,7 +88,7 @@ def tSNE_main(X):
 
 
 def KNN_classifier(X,y,dim_reduction):
-    neighbor = [10,20,30,40]#,50,60,70,80,90,100]
+    neighbor = [1,5,10,20,30,40,50,60,70,80,90,100]
     
     if dim_reduction:
         X_train,X_test,y_train,y_test = train_test_split(X,y,test_size=0.2)
@@ -142,8 +142,6 @@ def LDA_classifier(X,y,dim_reduction):
 
 def store_data(cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels):
     
-    global X_train,y_train,X_test,y_test
-    
     X_train, y_train = cifar_trn_data, cifar_trn_labels
     X_train, y_train = shuffle(X_train,y_train)
     with open("data/X_train.npy","wb") as f:
@@ -169,8 +167,25 @@ def load_data():
     return X_train,X_test,y_train,y_test
 
 
+def build_CNN_data():
+    X_train = np.load("data/X_train.npy")
+    X_test = np.load("data/X_test.npy")
+
+    new_train = PCA_main(X_train)
+    new_test = PCA_main(X_test)
+
+    with open("data/PCA/X_PCA_train.npy","wb") as f:
+        np.save(f,new_train)
+
+    with open("data/PCA/X_PCA_test.npy","wb") as f:
+        np.save(f,new_test)
+
+    
 def main(sample_size, classification_model, dimension_reduction):
     
+    build_CNN_data()
+    sys.exit()
+
     classification_model = classification_model.split(",")
     dimension_reduction = dimension_reduction.split(",")
 
@@ -181,34 +196,37 @@ def main(sample_size, classification_model, dimension_reduction):
     if build_cifar:
         cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels = load_cifar()
         store_data(cifar_trn_data, cifar_trn_labels, cifar_tst_data, cifar_tst_labels)
+        print("Cifar data converted to numpy and stored")
+        X_train,X_test,y_train,y_test = load_data()
     else:
         X_train,X_test,y_train,y_test = load_data()
  
     print("The size of the data being used is : ",sample_size)
     
-    choice = input("Classifiy the data directly? [Y/N] ")
-    if choice=="Y":
+    choice = input("Continue with dim reduction : [Y/N] ")
+    if choice=="n" or choice=="N":
         KNN_classifier(X_train[:sample_size],y_train[:sample_size],False)
         SVM_classifier(X_train[:sample_size],y_train[:sample_size],False) 
         LDA_classifier(X_train[:sample_size],y_train[:sample_size],False) 
-    else:
-        #print("Running {} dimension reduction algorithms.".format(dimension_reduction))
+    elif choice=="Y" or choice=="y":
         for val in dimension_reduction:
             print("Running dimension reduction algorithm : ",val)
             dim_query = val+"_main"
             func1 = globals()[dim_query]
             X = func1(X_train[:sample_size])
+            
             writing_dir = "data/"+dim_query.split("_")[0] + "/X"+"_"+dim_query.split("_")[0]+"_"+str(sample_size)+".npy"
             with open(writing_dir,"wb") as f:
                 np.save(f,X)
             
-            # Running classificaiton models
+            # Running classification models
             for val in classification_model:
                 print("Running classification model :",val)
                 model_query = val+"_classifier"
                 func2 = globals()[model_query]
                 func2(X,y_train[:sample_size],True)
-                
+    else:
+        print("Invalid option")
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser()
